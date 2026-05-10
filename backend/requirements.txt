@@ -1,0 +1,12 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+motor==3.5.1               # async MongoDB driver
+pymongo==4.8.0             # motor 3.5.x requires pymongo <4.9
+pydantic==2.8.0
+pydantic-settings==2.4.0
+python-jose[cryptography]==3.3.0   # JWT verification
+httpx==0.27.0              # for fetching Clerk JWKS
+langchain==0.3.0
+langchain-ollama==0.2.0
+langchain-community==0.3.0
+python-dotenv==1.0.1
