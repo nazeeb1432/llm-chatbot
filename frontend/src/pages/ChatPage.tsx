@@ -17,7 +17,7 @@ export default function ChatPage() {
 
       {error && (
         <div className="flex items-center justify-between gap-3 mx-4 mt-3 px-4 py-2.5 bg-red-900/40 border border-red-700/50 rounded-lg text-sm text-red-300 shrink-0">
-          <span>{error}</span>
+          {error}
           <button
             onClick={clearError}
             className="text-red-400 hover:text-red-200 transition-colors shrink-0"
