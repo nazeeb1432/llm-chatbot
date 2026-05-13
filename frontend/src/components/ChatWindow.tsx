@@ -9,9 +9,17 @@ interface Props {
 
 function TypingIndicator() {
   return (
-    <div className="flex items-start gap-1 px-1">
-      <span className="text-xs text-slate-500 self-end mb-1 mr-1">Assistant</span>
-      <div className="flex items-center gap-1 bg-slate-700 px-4 py-3 rounded-2xl rounded-bl-sm">
+    <div className="flex items-start gap-3">
+      {/* Bot avatar */}
+      <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+        <svg viewBox="0 0 20 20" fill="white" className="w-4 h-4">
+          <rect x="3" y="8" width="14" height="9" rx="2" />
+          <circle cx="7.5" cy="12.5" r="1.5" fill="#3b82f6" />
+          <circle cx="12.5" cy="12.5" r="1.5" fill="#3b82f6" />
+          <path d="M10 4v4M8 4h4" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+      </div>
+      <div className="flex items-center gap-1 py-2">
         {[0, 1, 2].map(i => (
           <span
             key={i}
@@ -26,11 +34,19 @@ function TypingIndicator() {
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-500 select-none">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-12 h-12 text-slate-600">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
-      </svg>
-      <p className="text-sm">Start a conversation…</p>
+    <div className="flex flex-col items-center justify-center h-full gap-4 select-none">
+      <div className="w-16 h-16 rounded-2xl bg-blue-600/20 flex items-center justify-center">
+        <svg viewBox="0 0 32 32" fill="none" className="w-9 h-9">
+          <rect x="3" y="12" width="26" height="15" rx="3" fill="#3b82f6" />
+          <circle cx="11" cy="19.5" r="2.5" fill="white" />
+          <circle cx="21" cy="19.5" r="2.5" fill="white" />
+          <path d="M16 5v7M13 5h6" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </div>
+      <div className="text-center">
+        <h2 className="text-xl font-semibold text-slate-200 mb-1">Hello! Let's Chat.</h2>
+        <p className="text-sm text-slate-500">Ask me anything — I'm here to help.</p>
+      </div>
     </div>
   )
 }
@@ -46,7 +62,7 @@ export default function ChatWindow({ messages, isLoading }: Props) {
     <>
       <style>{`
         @keyframes bubbleIn {
-          from { opacity: 0; transform: translateY(8px); }
+          from { opacity: 0; transform: translateY(6px); }
           to   { opacity: 1; transform: translateY(0); }
         }
         @keyframes typingDot {
@@ -55,18 +71,18 @@ export default function ChatWindow({ messages, isLoading }: Props) {
         }
       `}</style>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4 scroll-smooth">
+      <div className="flex-1 overflow-y-auto">
         {messages.length === 0 && !isLoading ? (
           <EmptyState />
         ) : (
-          <>
+          <div className="max-w-3xl mx-auto px-4 py-6 flex flex-col gap-6">
             {messages.map((msg, i) => (
               <MessageBubble key={i} message={msg} />
             ))}
             {isLoading && <TypingIndicator />}
-          </>
+            <div ref={bottomRef} />
+          </div>
         )}
-        <div ref={bottomRef} />
       </div>
     </>
   )

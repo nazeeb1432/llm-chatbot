@@ -3,7 +3,10 @@ import { useAuth } from '@clerk/clerk-react'
 import { sendMessageStream, getChatHistory } from '../api/chatApi'
 import type { Message } from '../api/chatApi'
 
-export function useChat() {
+export function useChat(
+  sessionId: string | null,
+  onTitleUpdate?: (sessionId: string, title: string) => void,
+) {
   const { getToken } = useAuth()
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -11,15 +14,23 @@ export function useChat() {
   const [inputValue, setInputValue] = useState('')
   const shouldScrollRef = useRef(false)
 
+  // Reset and reload whenever the active session changes
   useEffect(() => {
+    if (!sessionId) {
+      setMessages([])
+      return
+    }
+
     let cancelled = false
+    setMessages([])
+    setError(null)
+    setIsLoading(true)
 
     async function loadHistory() {
-      setIsLoading(true)
       try {
         const token = await getToken()
         if (!token) return
-        const { messages: history } = await getChatHistory(token)
+        const { messages: history } = await getChatHistory(token, sessionId!)
         if (!cancelled) {
           setMessages(history)
           shouldScrollRef.current = true
@@ -33,9 +44,10 @@ export function useChat() {
 
     loadHistory()
     return () => { cancelled = true }
-  }, [getToken])
+  }, [sessionId, getToken])
 
   const sendMessage = useCallback(async (content: string) => {
+    if (!sessionId) return
     const trimmed = content.trim()
     if (!trimmed || isLoading) return
 
@@ -62,6 +74,7 @@ export function useChat() {
       await sendMessageStream(
         token,
         trimmed,
+        sessionId,
         (chunk) => {
           setMessages(prev => {
             const updated = [...prev]
@@ -74,13 +87,16 @@ export function useChat() {
         () => {
           setIsLoading(false)
         },
+        (title) => {
+          if (onTitleUpdate) onTitleUpdate(sessionId, title)
+        },
       )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send message.')
       setMessages(prev => prev.slice(0, -2))
       setIsLoading(false)
     }
-  }, [getToken, isLoading])
+  }, [sessionId, getToken, isLoading, onTitleUpdate])
 
   const clearError = useCallback(() => setError(null), [])
 

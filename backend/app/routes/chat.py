@@ -9,9 +9,16 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.auth import get_current_user_id
 from app.database import get_database
 from app.models import ChatRequest, ChatResponse, Message, MessageRole
-from app.services import history_service, llm_service
+from app.services import history_service, llm_service, session_service
 
 router = APIRouter(tags=["chat"])
+
+_TITLE_MAX = 60
+
+
+def _make_title(text: str) -> str:
+    text = text.strip()
+    return text[:_TITLE_MAX] + "…" if len(text) > _TITLE_MAX else text
 
 
 @router.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK)
@@ -20,11 +27,10 @@ async def chat(
     user_id: str = Depends(get_current_user_id),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> ChatResponse:
-    """Send a message and receive an AI-generated reply.
+    session = await session_service.get_session(db, user_id, request.session_id)
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
 
-    Persists both the user message and the assistant reply to MongoDB so that
-    the conversation history survives across sessions.
-    """
     user_message = Message(
         role=MessageRole.user,
         content=request.message,
@@ -32,7 +38,7 @@ async def chat(
     )
 
     try:
-        reply_text = await llm_service.generate_response(user_id, request.message)
+        reply_text = await llm_service.generate_response(user_id, request.session_id, request.message)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -46,8 +52,12 @@ async def chat(
     )
 
     try:
-        await history_service.save_message(db, user_id, user_message)
-        await history_service.save_message(db, user_id, assistant_message)
+        await history_service.save_message(db, user_id, request.session_id, user_message)
+        await history_service.save_message(db, user_id, request.session_id, assistant_message)
+        if session.title == "New Chat":
+            await session_service.update_session_title(
+                db, user_id, request.session_id, _make_title(request.message)
+            )
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -63,8 +73,11 @@ async def chat_stream(
     user_id: str = Depends(get_current_user_id),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ) -> StreamingResponse:
-    """Stream an AI reply as Server-Sent Events, then persist both messages."""
+    session = await session_service.get_session(db, user_id, request.session_id)
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
 
+    is_new_chat = session.title == "New Chat"
     user_message = Message(
         role=MessageRole.user,
         content=request.message,
@@ -74,7 +87,7 @@ async def chat_stream(
     async def event_generator() -> AsyncGenerator[str, None]:
         collected: list[str] = []
         try:
-            async for chunk in llm_service.stream_response(user_id, request.message):
+            async for chunk in llm_service.stream_response(user_id, request.session_id, request.message):
                 collected.append(chunk)
                 yield f"data: {json.dumps(chunk)}\n\n"
         except Exception as exc:
@@ -88,8 +101,14 @@ async def chat_stream(
             timestamp=datetime.now(timezone.utc),
         )
         try:
-            await history_service.save_message(db, user_id, user_message)
-            await history_service.save_message(db, user_id, assistant_message)
+            await history_service.save_message(db, user_id, request.session_id, user_message)
+            await history_service.save_message(db, user_id, request.session_id, assistant_message)
+            if is_new_chat:
+                new_title = _make_title(request.message)
+                await session_service.update_session_title(
+                    db, user_id, request.session_id, new_title
+                )
+                yield f"data: {json.dumps({'__title__': new_title})}\n\n"
         except Exception:
             pass
 

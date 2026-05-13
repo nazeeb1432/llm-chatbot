@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
-from datetime import datetime
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo import ASCENDING, DESCENDING
 
 from app.config import settings
 
@@ -20,7 +20,15 @@ async def lifespan(app):
 
 async def _ensure_indexes() -> None:
     db = _get_db()
-    await db["chat_history"].create_index("user_id")
+    # sessions: list by user newest-first; fast lookup by session_id
+    await db["sessions"].create_index([("user_id", ASCENDING), ("created_at", DESCENDING)])
+    await db["sessions"].create_index(
+        [("session_id", ASCENDING), ("user_id", ASCENDING)], unique=True
+    )
+    # chat_history: one document per (user_id, session_id)
+    await db["chat_history"].create_index(
+        [("user_id", ASCENDING), ("session_id", ASCENDING)], unique=True
+    )
 
 
 def _get_db() -> AsyncIOMotorDatabase:

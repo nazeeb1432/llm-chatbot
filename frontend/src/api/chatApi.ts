@@ -8,6 +8,7 @@ export interface Message {
 
 export interface ChatRequest {
   message: string
+  session_id: string
 }
 
 export interface ChatResponse {
@@ -17,6 +18,17 @@ export interface ChatResponse {
 
 export interface HistoryResponse {
   messages: Message[]
+}
+
+export interface Session {
+  session_id: string
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+export interface SessionsListResponse {
+  sessions: Session[]
 }
 
 const client = axios.create({
@@ -38,11 +50,53 @@ function handleError(err: unknown): never {
   throw new Error('An unexpected error occurred. Please try again.')
 }
 
-export async function sendMessage(token: string, message: string): Promise<ChatResponse> {
+// ── Sessions ──────────────────────────────────────────────────────────────────
+
+export async function createSession(token: string): Promise<Session> {
   try {
-    const { data } = await client.post<ChatResponse>('/api/chat', { message } satisfies ChatRequest, {
+    const { data } = await client.post<Session>('/api/sessions', null, {
       headers: authHeaders(token),
     })
+    return data
+  } catch (err) {
+    handleError(err)
+  }
+}
+
+export async function listSessions(token: string): Promise<Session[]> {
+  try {
+    const { data } = await client.get<SessionsListResponse>('/api/sessions', {
+      headers: authHeaders(token),
+    })
+    return data.sessions
+  } catch (err) {
+    handleError(err)
+  }
+}
+
+export async function deleteSession(token: string, sessionId: string): Promise<void> {
+  try {
+    await client.delete(`/api/sessions/${sessionId}`, {
+      headers: authHeaders(token),
+    })
+  } catch (err) {
+    handleError(err)
+  }
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
+
+export async function sendMessage(
+  token: string,
+  message: string,
+  sessionId: string,
+): Promise<ChatResponse> {
+  try {
+    const { data } = await client.post<ChatResponse>(
+      '/api/chat',
+      { message, session_id: sessionId } satisfies ChatRequest,
+      { headers: authHeaders(token) },
+    )
     return data
   } catch (err) {
     handleError(err)
@@ -52,8 +106,10 @@ export async function sendMessage(token: string, message: string): Promise<ChatR
 export async function sendMessageStream(
   token: string,
   message: string,
+  sessionId: string,
   onChunk: (text: string) => void,
   onDone: () => void,
+  onTitleUpdate?: (title: string) => void,
 ): Promise<void> {
   const baseURL = import.meta.env.VITE_API_URL as string
   const response = await fetch(`${baseURL}/api/chat/stream`, {
@@ -62,7 +118,7 @@ export async function sendMessageStream(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ message } satisfies ChatRequest),
+    body: JSON.stringify({ message, session_id: sessionId } satisfies ChatRequest),
   })
 
   if (!response.ok) {
@@ -88,8 +144,12 @@ export async function sendMessageStream(
         return
       }
       try {
-        const text = JSON.parse(payload) as string
-        onChunk(text)
+        const parsed = JSON.parse(payload) as string | { error?: string; __title__?: string }
+        if (typeof parsed === 'string') {
+          onChunk(parsed)
+        } else if (parsed.__title__ && onTitleUpdate) {
+          onTitleUpdate(parsed.__title__)
+        }
       } catch {
         // malformed chunk — skip
       }
@@ -98,10 +158,13 @@ export async function sendMessageStream(
   onDone()
 }
 
-export async function getChatHistory(token: string): Promise<HistoryResponse> {
+// ── History ───────────────────────────────────────────────────────────────────
+
+export async function getChatHistory(token: string, sessionId: string): Promise<HistoryResponse> {
   try {
     const { data } = await client.get<HistoryResponse>('/api/history', {
       headers: authHeaders(token),
+      params: { session_id: sessionId },
     })
     return data
   } catch (err) {

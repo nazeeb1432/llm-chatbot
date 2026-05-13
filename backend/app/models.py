@@ -17,6 +17,7 @@ class Message(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
+    session_id: str
 
 
 class ChatResponse(BaseModel):
@@ -26,3 +27,22 @@ class ChatResponse(BaseModel):
 
 class HistoryResponse(BaseModel):
     messages: list[Message]
+
+
+class Session(BaseModel):
+    session_id: str
+    user_id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class SessionResponse(BaseModel):
+    session_id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class SessionsListResponse(BaseModel):
+    sessions: list[SessionResponse]

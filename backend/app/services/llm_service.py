@@ -17,14 +17,14 @@ _prompt = ChatPromptTemplate.from_messages([
     ("human", "{input}"),
 ])
 
-# in-memory session store: user_id -> ChatMessageHistory
+# in-memory store: "{user_id}:{session_id}" -> ChatMessageHistory
 _session_store: dict[str, ChatMessageHistory] = {}
 
 
-def _get_session_history(session_id: str) -> ChatMessageHistory:
-    if session_id not in _session_store:
-        _session_store[session_id] = ChatMessageHistory()
-    return _session_store[session_id]
+def _get_session_history(key: str) -> ChatMessageHistory:
+    if key not in _session_store:
+        _session_store[key] = ChatMessageHistory()
+    return _session_store[key]
 
 
 _chain_with_history = RunnableWithMessageHistory(
@@ -35,24 +35,23 @@ _chain_with_history = RunnableWithMessageHistory(
 )
 
 
-async def generate_response(user_id: str, user_message: str) -> str:
-    """
-    Invoke the LLM with full conversation history for *user_id*.
-    RunnableWithMessageHistory automatically appends the human message
-    before and the AI reply after each invocation.
-    """
+def _key(user_id: str, session_id: str) -> str:
+    return f"{user_id}:{session_id}"
+
+
+async def generate_response(user_id: str, session_id: str, user_message: str) -> str:
     response = await _chain_with_history.ainvoke(
         {"input": user_message},
-        config={"configurable": {"session_id": user_id}},
+        config={"configurable": {"session_id": _key(user_id, session_id)}},
     )
     return response.content
 
 
-async def stream_response(user_id: str, user_message: str):
+async def stream_response(user_id: str, session_id: str, user_message: str):
     """Async generator that yields text chunks from the LLM."""
     async for chunk in _chain_with_history.astream(
         {"input": user_message},
-        config={"configurable": {"session_id": user_id}},
+        config={"configurable": {"session_id": _key(user_id, session_id)}},
     ):
         if chunk.content:
             yield chunk.content
